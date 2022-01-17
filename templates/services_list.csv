@@ -1,0 +1,6 @@
+id, name_sevices, camera_link
+0,test_0,rtsp://192.168.1.3:8080/video/h264
+1,test_1,rtmp://localhost:1935/live/1
+2,test_2,rtmp://localhost:1935/live/2
+3,test_3,rtmp://localhost:1935/live/3
+4,test_4,rtmp://localhost:1935/live/4

@@ -8,8 +8,12 @@ import numpy as np
 import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 # from apscheduler.schedulers.blocking import BlockingScheduler
+import requests
 import tzlocal
 
+def send_notif(message):
+	url = F'https://api.telegram.org/bot2027464790:AAE4gstG6ZqmBZCR2xnPre6wFczRpiV4GsQ/sendMessage?chat_id=-526300571&text={message}'
+	requests.get(url)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--force-restart', '-fr', default=('0',), type=str, nargs='+', help='set id of force restart')
@@ -58,6 +62,7 @@ while True:
 				logging.error(F"{datetime.datetime.now()}, restarting {service[1]}")
 				cmd = F"pm2 restart {service[1]}"
 				os.system(cmd)
+				send_notif(f'Kecilin-Compression-CCTV\nCompression not work normally\non this link {service[2]}\nTrying to restart service {service[1]}')
 			cap = None
 
 	time.sleep(30)

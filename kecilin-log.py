@@ -27,7 +27,7 @@ class KecilinLog:
 		self.skip_cctv 		= args.skip_cctv
 
 		self.services 		= None
-		self.status_key 	= False
+		self.status_key 	= True
 
 
 		print("\n\n\tKecilinLog")
@@ -160,13 +160,19 @@ if __name__ == '__main__':
 			print('Log CCTV is running')
 			for service in kecilin_log.services:
 				if kecilin_log.status_key:
-					cap = cv2.VideoCapture(service[2])
+					cap = cv2.VideoCapture(service[3])
 					time.sleep(30)
 					if not cap.isOpened():
-						logging.error(F"{datetime.datetime.now()}, restarting {service[1]}")
-						cmd = F"pm2 restart {service[1]}"
-						os.system(cmd)
-						kecilin_log.send_notif(f'Kecilin {args.project_name}\nCompression not work normally\non this link {service[2]}\nTrying to restart service {service[1]}')
+						cap = cv2.VideoCapture(service[2])
+						time.sleep(15)
+						if not cap.isOpened():
+							logging.error(F"{datetime.datetime.now()}, Camera {service[2]} is offline")
+							kecilin_log.send_notif(f"Kecilin {args.project_name}\nCompression not work normally\non this link {service[3]}\nCamera Original is offline")
+						else:
+							logging.error(F"{datetime.datetime.now()}, restarting {service[1]}")
+							cmd = F"pm2 restart {service[1]}"
+							os.system(cmd)
+							kecilin_log.send_notif(f'Kecilin {args.project_name}\nCompression not work normally\non this link {service[3]}\nTrying to restart service {service[1]}')
 					cap = None
 
 		time.sleep(30)

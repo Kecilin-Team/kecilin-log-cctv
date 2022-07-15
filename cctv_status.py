@@ -6,8 +6,8 @@ import datetime
 import argparse
 
 import cv2
-import pandas as pd
-import numpy as np
+# import pandas as pd
+# import numpy as np
 from apscheduler.schedulers.background import BackgroundScheduler
 # from apscheduler.schedulers.blocking import BlockingScheduler
 import requests
@@ -31,8 +31,8 @@ class KecilinLog:
 
 
 		print("\n\n\tKecilinLog")
-		print("\tDomain :",self.domain)
-		print("\tAPI Key :",self.key)
+		print("\tProject Name:", args.project_name)
+		# print("\tAPI Key :",self.key)
 
 	def reg_init_key(self):
 		
@@ -100,10 +100,11 @@ if __name__ == '__main__':
 	parser.add_argument('-pn', '--project-name', type=str, required=True, help='set Project Name') 
 	parser.add_argument('-k', '--key', type=str, default='ygbyi87b7b87ygb87tbytb8iugiut76t6bgby', help='set key number') 
 	parser.add_argument('-d', '--domain', type=str, default='http://api.cctv.kecilin.id', help='set domain key') 
-	parser.add_argument('-sn', '--service-name', type=str, help='set name service', default='kecilin-logs') 
-	parser.add_argument('-pm2', '--pm2-json', action='store_true', help='Create service pm2 config.json')
+	# parser.add_argument('-sn', '--service-name', type=str, help='set name service', default='kecilin-logs') 
+	parser.add_argument('-ua','--url-api', type=str, default="http://192.168.0.233:28088", help='set url of post data') 
+	# parser.add_argument('-pm2', '--pm2-json', action='store_true', help='Create service pm2 config.json')
 	parser.add_argument('--force-restart', '-fr', default=('0',), type=str, nargs='+', help='set id of force restart')
-	parser.add_argument('-ifr', '--interval-fr', default=30, type=int, help='set interval of force restart')
+	parser.add_argument('-ifr', '--interval-fr', default=0, type=int, help='set interval of force restart')
 	parser.add_argument('-fnl', '--fn-log', default='logs/kecilin.log', type=str, help='set file name of log')
 	parser.add_argument('-sc', '--skip-cctv', default=False, action='store_true', help='hide confidences')
 	parser.add_argument('-tt', '--tlg-token', type=str, default='5384978803:AAEKN30ooecrdwbfj0QDp__2ZZlMuoE54_g', help='Set Telegram token')
@@ -116,27 +117,12 @@ if __name__ == '__main__':
 	logging.info('Kecilin logs is started')
 
 	kecilin_log = KecilinLog(args)
-	kecilin_log.reg_init_key()
-
-	sched = BackgroundScheduler(daemon=True, timezone=str(tzlocal.get_localzone()))
-
-	# @sched.scheduled_job('interval', id='job_api_key', seconds=10)
-	@sched.scheduled_job('interval', id='job_api_key', minutes=10)
-	def check_history_key():
-		kecilin_log.status_key = kecilin_log.history_key()
-		if not kecilin_log.status_key:
-			kecilin_log.send_notif(f'Kecilin {args.project_name}\nApi Key is inactived or Expired')
-			if kecilin_log.services is not None:
-				for service in kecilin_log.services:
-					logging.error(F"{datetime.datetime.now()}, stopping {service[1]}")
-					cmd = F"pm2 stop {service[1]}"
-					os.system(cmd)
-		else:
-			print("key is active")
+	# kecilin_log.reg_init_key()
 
 		
 
 	if args.interval_fr > 0:
+		sched = BackgroundScheduler(daemon=True, timezone=str(tzlocal.get_localzone()))
 		print('Force Restart Active')
 		pm2_ids = ' '.join(list(args.force_restart))
 
@@ -145,37 +131,34 @@ if __name__ == '__main__':
 			cmd = F"pm2 restart {pm2_ids}" 
 			os.system(cmd)
 
+		sched.start()
+
 	else:
-		print('Force Restart is not Active')
+		print('\n\nForce Restart is not Active')
 	
 
-	sched.start()
-
-	if not args.skip_cctv:
-		kecilin_log.services = pd.read_csv('templates/services_list.csv', delimiter=',', header=0)
-		kecilin_log.services = np.array(kecilin_log.services)	
-
+	print('Log CCTV is running')
 	while True:
-		if args.skip_cctv or not kecilin_log.status_key:
-			print('Skipping CCTV')
-		else:
-			print('Log CCTV is running')
-			for service in kecilin_log.services:
-				if kecilin_log.status_key:
-					cap = cv2.VideoCapture(service[3])
-					time.sleep(30)
+		try:
+			data_cctv = requests.get(args.url_api).json()
+		except Exception as e:
+			print(F'\n\n{e}')
+			logging.error(F"{datetime.datetime.now()}, request to {args.url_api} is error")
+			sys.exit()
+		data = data_cctv['data'] 
+
+		for ip in data:
+			jenis_kereta = ip["jenis_kereta"]
+			no_sarana = ip["no_sarana"]
+			for link in ip["rtsp"]:
+				cap = cv2.VideoCapture(link)
+				time.sleep(30)
+				if not cap.isOpened():
 					if not cap.isOpened():
-						cap = cv2.VideoCapture(service[2])
-						time.sleep(15)
-						if not cap.isOpened():
-							logging.error(F"{datetime.datetime.now()}, Camera {service[2]} is offline")
-							kecilin_log.send_notif(f"Kecilin {args.project_name}\nCompression not work normally\non this link {service[3]}\nCamera Original is offline")
-						else:
-							logging.error(F"{datetime.datetime.now()}, restarting {service[1]}")
-							cmd = F"pm2 restart {service[1]}"
-							os.system(cmd)
-							kecilin_log.send_notif(f'Kecilin {args.project_name}\nCompression not work normally\non this link {service[3]}\nTrying to restart service {service[1]}')
-					cap = None
+						logging.error(F"{datetime.datetime.now()}, Camera {link} is offline")
+						kecilin_log.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nCamera {link} is offline\nJenis: {jenis_kereta},\nNo Sarana: {no_sarana}")
+					
+				cap = None
 
 		time.sleep(30)
 

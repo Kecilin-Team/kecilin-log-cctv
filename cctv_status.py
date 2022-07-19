@@ -156,7 +156,7 @@ if __name__ == '__main__':
 				if not cap.isOpened():
 					if not cap.isOpened():
 						logging.error(F"{datetime.datetime.now()}, Camera {link} is offline")
-						kecilin_log.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nCamera {link} is offline\nJenis: {jenis_kereta},\nNo Sarana: {no_sarana}")
+						kecilin_log.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {jenis_kereta},\nNo Sarana: {no_sarana}\nCamera is offline, {link}")
 					
 				cap = None
 

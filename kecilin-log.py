@@ -101,7 +101,7 @@ if __name__ == '__main__':
 	parser.add_argument('-k', '--key', type=str, default='ygbyi87b7b87ygb87tbytb8iugiut76t6bgby', help='set key number') 
 	parser.add_argument('-d', '--domain', type=str, default='http://api.cctv.kecilin.id', help='set domain key') 
 	parser.add_argument('-sn', '--service-name', type=str, help='set name service', default='kecilin-logs') 
-	parser.add_argument('-pm2', '--pm2-json', action='store_true', help='Create service pm2 config.json')
+	parser.add_argument('-c', '--cron', action='store_true', help='run cron restart')
 	parser.add_argument('--force-restart', '-fr', default=('0',), type=str, nargs='+', help='set id of force restart')
 	parser.add_argument('-ifr', '--interval-fr', default=30, type=int, help='set interval of force restart')
 	parser.add_argument('-fnl', '--fn-log', default='logs/kecilin.log', type=str, help='set file name of log')
@@ -120,7 +120,6 @@ if __name__ == '__main__':
 
 	sched = BackgroundScheduler(daemon=True, timezone=str(tzlocal.get_localzone()))
 
-	# @sched.scheduled_job('interval', id='job_api_key', seconds=10)
 	@sched.scheduled_job('interval', id='job_api_key', minutes=10)
 	def check_history_key():
 		kecilin_log.status_key = kecilin_log.history_key()
@@ -144,9 +143,19 @@ if __name__ == '__main__':
 		def force_restart_service():
 			cmd = F"pm2 restart {pm2_ids}" 
 			os.system(cmd)
-
 	else:
 		print('Force Restart is not Active')
+
+	if args.cron:
+		print('Cron Restart Active')
+		pm2_ids = ' '.join(list(args.force_restart))
+
+		@sched.scheduled_job('cron', id='job_force_restart', hour=0)
+		def force_restart_service():
+			cmd = F"pm2 restart {pm2_ids}" 
+			os.system(cmd)
+	else:
+		print('Cron Force Restart is not Active')
 	
 
 	sched.start()

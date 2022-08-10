@@ -3,4 +3,5 @@ pandas
 numpy
 opencv-python
 apscheduler
+scikit-learn
 requests

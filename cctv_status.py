@@ -13,6 +13,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import requests
 import tzlocal
 
+from modules import camera_is_open
+
+
+
 class KecilinLog:
 
 	def __init__(self, args):
@@ -92,9 +96,10 @@ class KecilinLog:
 
 	def send_notif(self, message):
 		url = F'https://api.telegram.org/bot{self.tlg_token}/sendMessage?chat_id={self.tlg_chat_id}&text={message}'
+		print(url)
 		requests.get(url)
 
-	def post_data_notif(url_api, form_data):
+	def post_data_notif(self, url_api, form_data):
 		try:
 			req = requests.post(url_api, data=form_data)
 
@@ -109,7 +114,7 @@ if __name__ == '__main__':
 	parser.add_argument('-d', '--domain', type=str, default='http://api.cctv.kecilin.id', help='set domain key') 
 	# parser.add_argument('-sn', '--service-name', type=str, help='set name service', default='kecilin-logs') 
 	parser.add_argument('-ua','--url-api', type=str, default="http://192.168.0.233:28088", help='set url of post data') 
-	parser.add_argument('-ua','--url-api-notif', type=str, default="https://gerbongkai.kecilin.id/api/notif/store", help='set url of post data for notif') 
+	parser.add_argument('-uan','--url-api-notif', type=str, default="https://gerbongkai.kecilin.id/api/notif/store", help='set url of post data for notif') 
 	# parser.add_argument('-pm2', '--pm2-json', action='store_true', help='Create service pm2 config.json')
 	parser.add_argument('--force-restart', '-fr', default=('0',), type=str, nargs='+', help='set id of force restart')
 	parser.add_argument('-ifr', '--interval-fr', default=0, type=int, help='set interval of force restart')
@@ -161,21 +166,44 @@ if __name__ == '__main__':
 			channel = 1
 			for link in ip["rtsp"]:
 				cap = cv2.VideoCapture(link)
-				time.sleep(30)
+				time.sleep(15)
 				if not cap.isOpened():
 					logging.error(F"{datetime.datetime.now()}, Camera {link} is offline")
 					kecilin_log.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {jenis_kereta},\nNo Sarana: {no_sarana}\nCamera channel {channel} is offline")
 					
 					notif_data = {
-						"name" : F"{ip["ip"]}_Ch-{channel}",
-						"datetime" : str{datetime.datetime.now()},
+						"name" : F"{ip['ip']}_Ch-{channel}",
+						"datetime" : str(datetime.datetime.now()),
 						"jenis" :  jenis_kereta,
 						"no_sarana" : no_sarana,
 						"status"	: False
 					}
-					kecilin_log.post_data_notif(opt.url_api_notif, notif_data)
+					kecilin_log.post_data_notif(args.url_api_notif, notif_data)
+
+
+				loop_time = 1
+				while cap.isOpened():
+					success, frame = cap.read() 
+					if success:
+						if not camera_is_open(frame, 100):
+							logging.error(F"{datetime.datetime.now()}, Camera {link}, blank")
+							kecilin_log.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {jenis_kereta},\nNo Sarana: {no_sarana}\nCamera channel {channel} is blank")
+							
+							notif_data = {
+								"name" : F"{ip['ip']}_Ch-{channel}",
+								"datetime" : str(datetime.datetime.now()),
+								"jenis" :  jenis_kereta,
+								"no_sarana" : no_sarana,
+								"status"	: False
+							}
+							kecilin_log.post_data_notif(args.url_api_notif, notif_data)
+					if loop_time == 4:
+						break
+
+					loop_time = loop_time + 1
+
+
 				cap = None
 				channel += 1
 
 		time.sleep(30)
-

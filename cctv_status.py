@@ -31,6 +31,7 @@ class KecilinLog:
 		self.skip_cctv 		= args.skip_cctv
 
 		self.services 		= None
+		self.temp_status_camera = {}
 		self.status_key 	= True
 
 
@@ -102,9 +103,33 @@ class KecilinLog:
 	def post_data_notif(self, url_api, form_data):
 		try:
 			req = requests.post(url_api, data=form_data)
-
+			print(req.status_code)
 		except:
 			pass
+
+	def update_status_camera(self, url_api, link, status):
+		if link in self.temp_status_camera:
+			if self.temp_status_camera[link] != status:
+				self.temp_status_camera[link] = status
+				update = True
+			else:
+				update = False
+		else:
+			self.temp_status_camera[link] = status
+			update = True
+
+		if update:
+			if status:
+				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {jenis_kereta},\nNo Sarana: {no_sarana}\nCamera channel {channel} is Online")
+			else:
+				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {jenis_kereta},\nNo Sarana: {no_sarana}\nCamera channel {channel} is Offline or Blank")
+
+			notif_data = {
+			    "rtsp": 	link,
+				"status"	: status
+			}
+			print(notif_data)
+			self.post_data_notif(url_api, notif_data)
 
 
 if __name__ == '__main__':
@@ -149,7 +174,7 @@ if __name__ == '__main__':
 	else:
 		print('\n\nForce Restart is not Active')
 	print('Log CCTV is running')
-	temp_data = None
+	
 	while True:
 		try:
 			data_cctv = requests.get(args.url_api).json()
@@ -158,63 +183,42 @@ if __name__ == '__main__':
 			logging.error(F"{datetime.datetime.now()}, request to {args.url_api} is error")
 			sys.exit()
 		data = data_cctv['data'] 
-		if temp_data is None or temp_data != data:
-			temp_data = data
-			for ip in data:
-				jenis_kereta = ip["jenis_kereta"]
-				no_sarana = ip["no_sarana"]
-				channel = 1
-				for link in ip["rtsp"]:
-					cap = cv2.VideoCapture(link)
-					time.sleep(15)
+		
+		
+		for ip in data:
+			jenis_kereta = ip["jenis_kereta"]
+			no_sarana = ip["no_sarana"]
+			channel = 1
+			for link in ip["rtsp"]:
+				
+				
+				
+				print(link)
+				cap = cv2.VideoCapture(link)
+				time.sleep(15)
 
 
-					loop_time = 1
-					while cap.isOpened():
-						success, frame = cap.read() 
-						if success:
-							if not camera_is_open(frame, 100):
-								logging.error(F"{datetime.datetime.now()}, Camera {link}, blank")
-								kecilin_log.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {jenis_kereta},\nNo Sarana: {no_sarana}\nCamera channel {channel} is blank")
-								
-								notif_data = {
-									"name" : F"{ip['ip']}_Ch-{channel}",
-									"datetime" : str(datetime.datetime.now()),
-									"jenis" :  jenis_kereta,
-									"no_sarana" : no_sarana,
-									"status"	: False
-								}
-								kecilin_log.post_data_notif(args.url_api_notif, notif_data)
-							else:
-								kecilin_log.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {jenis_kereta},\nNo Sarana: {no_sarana}\nCamera channel {channel} is Online")
-								
-								notif_data = {
-									"name" : F"{ip['ip']}_Ch-{channel}",
-									"datetime" : str(datetime.datetime.now()),
-									"jenis" :  jenis_kereta,
-									"no_sarana" : no_sarana,
-									"status"	: True
-								}
-								kecilin_log.post_data_notif(args.url_api_notif, notif_data)		
+				loop_time = 1
+				while True:
+					success, frame = cap.read() 
+					if success:
+						if not camera_is_open(frame, 100):
+							logging.error(F"{datetime.datetime.now()}, Camera {link}, blank")
+							kecilin_log.update_status_camera(args.url_api_notif, link, False)
 						else:
-							logging.error(F"{datetime.datetime.now()}, Camera {link} is offline")
-							kecilin_log.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {jenis_kereta},\nNo Sarana: {no_sarana}\nCamera channel {channel} is offline")
-							
-							notif_data = {
-								"name" : F"{ip['ip']}_Ch-{channel}",
-								"datetime" : str(datetime.datetime.now()),
-								"jenis" :  jenis_kereta,
-								"no_sarana" : no_sarana,
-								"status"	: False
-							}
-							kecilin_log.post_data_notif(args.url_api_notif, notif_data)
-						if loop_time == 4:
-							break
+							kecilin_log.update_status_camera(args.url_api_notif, link, True)
+								
+					else:
+						logging.error(F"{datetime.datetime.now()}, Camera {link} is offline")
+						kecilin_log.update_status_camera(args.url_api_notif, link, False)
+						
+					if loop_time == 1:
+						break
 
-						loop_time = loop_time + 1
+					loop_time = loop_time + 1
 
 
-					cap = None
-					channel += 1
+				cap = None
+				channel += 1
 
 		time.sleep(30)

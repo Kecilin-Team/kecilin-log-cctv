@@ -107,7 +107,7 @@ class KecilinLog:
 		except:
 			pass
 
-	def update_status_camera(self, url_api, link, status):
+	def update_status_camera(self, url_api, link, status, identitas):
 		if link in self.temp_status_camera:
 			if self.temp_status_camera[link] != status:
 				self.temp_status_camera[link] = status
@@ -120,9 +120,11 @@ class KecilinLog:
 
 		if update:
 			if status:
-				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {jenis_kereta},\nNo Sarana: {no_sarana}\nCamera channel {channel} is Online")
+				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {identitas["jenis_kereta"]},\nNo Sarana: {identitas["no_sarana"]}\nCamera channel {identitas["channel"]} is Online")
+			elif not status:
+				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {identitas["jenis_kereta"]},\nNo Sarana: {identitas["no_sarana"]}\nCamera channel {identitas["channel"]} is Offline")
 			else:
-				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {jenis_kereta},\nNo Sarana: {no_sarana}\nCamera channel {channel} is Offline or Blank")
+				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {identitas["jenis_kereta"]},\nNo Sarana: {identitas["no_sarana"]}\nCamera channel {identitas["channel"]} is Blank")
 
 			notif_data = {
 			    "rtsp": 	link,
@@ -130,6 +132,22 @@ class KecilinLog:
 			}
 			print(notif_data)
 			self.post_data_notif(url_api, notif_data)
+
+
+	def checking_status(self, args, success, frame, link, identitas):
+		if success:
+			if not camera_is_open(frame, 100):
+				logging.error(F"{datetime.datetime.now()}, Camera {link}, blank")
+				self.update_status_camera(args.url_api_notif, link, 'blank', identitas)
+				print('camera blank')
+			else:
+				self.update_status_camera(args.url_api_notif, link, True, identitas)
+				print('camera aktif')
+					
+		else:
+			logging.error(F"{datetime.datetime.now()}, Camera {link} is offline")
+			self.update_status_camera(args.url_api_notif, link, False, identitas)
+			print('camera offline')
 
 
 if __name__ == '__main__':
@@ -145,8 +163,8 @@ if __name__ == '__main__':
 	parser.add_argument('-ifr', '--interval-fr', default=0, type=int, help='set interval of force restart')
 	parser.add_argument('-fnl', '--fn-log', default='logs/kecilin.log', type=str, help='set file name of log')
 	parser.add_argument('-sc', '--skip-cctv', default=False, action='store_true', help='hide confidences')
-	parser.add_argument('-tt', '--tlg-token', type=str, default='5384978803:AAEKN30ooecrdwbfj0QDp__2ZZlMuoE54_g', help='Set Telegram token')
-	parser.add_argument('-tc', '--tlg-chat-id', type=str, default='-713374553', help='Set telegram chat id')
+	parser.add_argument('-tt', '--tlg-token', type=str, default='5793621628:AAGlXUMECyjG0ZaDpqUp3ayuG-fL4-Jko0U', help='Set Telegram token')
+	parser.add_argument('-tc', '--tlg-chat-id', type=str, default='-735553666', help='Set telegram chat id')
 	args = parser.parse_args()
 
 	logging.getLogger('apscheduler.executors.default').propagate = False
@@ -189,36 +207,37 @@ if __name__ == '__main__':
 			jenis_kereta = ip["jenis_kereta"]
 			no_sarana = ip["no_sarana"]
 			channel = 1
+
+			identitas = {}
+
+			identitas['no_sarana'] = no_sarana
+			identitas['jenis_kereta'] = jenis_kereta
+			identitas['channel'] = channel
+
 			for link in ip["rtsp"]:
 				
 				
 				
-				print(link)
+				# print(link)
 				cap = cv2.VideoCapture(link)
-				time.sleep(15)
+				time.sleep(0.5)
 
 
-				loop_time = 1
-				while True:
-					success, frame = cap.read() 
-					if success:
-						if not camera_is_open(frame, 100):
-							logging.error(F"{datetime.datetime.now()}, Camera {link}, blank")
-							kecilin_log.update_status_camera(args.url_api_notif, link, False)
-						else:
-							kecilin_log.update_status_camera(args.url_api_notif, link, True)
-								
-					else:
-						logging.error(F"{datetime.datetime.now()}, Camera {link} is offline")
-						kecilin_log.update_status_camera(args.url_api_notif, link, False)
-						
-					if loop_time == 1:
-						break
-
-					loop_time = loop_time + 1
-
+				
+				success, frame = cap.read() 
+				kecilin_log.checking_status(args, success, frame, link, identitas)
+				
 
 				cap = None
 				channel += 1
 
-		time.sleep(30)
+		for link in kecilin_log.temp_status_camera:
+			cap = cv2.VideoCapture(link)
+			time.sleep(0.5)				
+			success, frame = cap.read() 
+			kecilin_log.checking_status(args, success, frame, link, identitas)
+			
+
+			cap = None
+
+		time.sleep(1)

@@ -119,12 +119,12 @@ class KecilinLog:
 			update = True
 
 		if update:
-			if status:
-				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {identitas["jenis_kereta"]},\nNo Sarana: {identitas["no_sarana"]}\nCamera channel {identitas["channel"]} is Online")
-			elif not status:
-				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {identitas["jenis_kereta"]},\nNo Sarana: {identitas["no_sarana"]}\nCamera channel {identitas["channel"]} is Offline")
+			if status == 'blank':
+				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {identitas['jenis_kereta']},\nNo Sarana: {identitas['no_sarana']}\nCamera channel {identitas['channel']} is Blank")
+			elif status:
+				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {identitas['jenis_kereta']},\nNo Sarana: {identitas['no_sarana']}\nCamera channel {identitas['channel']} is Online")
 			else:
-				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {identitas["jenis_kereta"]},\nNo Sarana: {identitas["no_sarana"]}\nCamera channel {identitas["channel"]} is Blank")
+				self.send_notif(f"Kecilin {args.project_name}\n{datetime.datetime.now()}\nJenis: {identitas['jenis_kereta']},\nNo Sarana: {identitas['no_sarana']}\nCamera channel {identitas['channel']} is Offline")
 
 			notif_data = {
 			    "rtsp": 	link,
@@ -156,8 +156,8 @@ if __name__ == '__main__':
 	parser.add_argument('-k', '--key', type=str, default='ygbyi87b7b87ygb87tbytb8iugiut76t6bgby', help='set key number') 
 	parser.add_argument('-d', '--domain', type=str, default='http://api.cctv.kecilin.id', help='set domain key') 
 	# parser.add_argument('-sn', '--service-name', type=str, help='set name service', default='kecilin-logs') 
-	parser.add_argument('-ua','--url-api', type=str, default="http://192.168.0.233:28088", help='set url of post data') 
-	parser.add_argument('-uan','--url-api-notif', type=str, default="https://gerbongkai.kecilin.id/api/notif/store", help='set url of post data for notif') 
+	parser.add_argument('-ua','--url-api', type=str, default="http://127.0.0.1:8000/active", help='set url of post data') 
+	parser.add_argument('-uan','--url-api-notif', type=str, default="http://127.0.0.1:8555/api/notif/store", help='set url of post data for notif') 
 	# parser.add_argument('-pm2', '--pm2-json', action='store_true', help='Create service pm2 config.json')
 	parser.add_argument('--force-restart', '-fr', default=('0',), type=str, nargs='+', help='set id of force restart')
 	parser.add_argument('-ifr', '--interval-fr', default=0, type=int, help='set interval of force restart')
@@ -212,9 +212,9 @@ if __name__ == '__main__':
 
 			identitas['no_sarana'] = no_sarana
 			identitas['jenis_kereta'] = jenis_kereta
-			identitas['channel'] = channel
 
 			for link in ip["rtsp"]:
+				identitas['channel'] = channel
 				
 				
 				

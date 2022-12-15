@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import http.client as httplib
 import logging
 import datetime
 import argparse
@@ -28,7 +29,7 @@ class KecilinLog:
 
 		self.services 		= None
 		self.status_key 	= True
-
+		self.conn 			= httplib.HTTPSConnection("8.8.8.8", timeout=5)
 
 		print("\n\n\tKecilinLog")
 		print("\tDomain :",self.domain)
@@ -92,7 +93,19 @@ class KecilinLog:
 
 	def send_notif(self, message):
 		url = F'https://api.telegram.org/bot{self.tlg_token}/sendMessage?chat_id={self.tlg_chat_id}&text={message}'
+		print(url)
 		requests.get(url)
+
+
+	def have_internet(self) -> bool:
+	    
+	    try:
+	        self.conn.request("HEAD", "/")
+	        return True
+	    except Exception:
+	        return False
+	    finally:
+	        self.conn.close()
 
 
 if __name__ == '__main__':
@@ -116,22 +129,22 @@ if __name__ == '__main__':
 	logging.info('Kecilin logs is started')
 
 	kecilin_log = KecilinLog(args)
-	kecilin_log.reg_init_key()
+	# kecilin_log.reg_init_key()
 
 	sched = BackgroundScheduler(daemon=True, timezone=str(tzlocal.get_localzone()))
 
-	@sched.scheduled_job('interval', id='job_api_key', minutes=10)
-	def check_history_key():
-		kecilin_log.status_key = kecilin_log.history_key()
-		if not kecilin_log.status_key:
-			kecilin_log.send_notif(f'Kecilin {args.project_name}\nApi Key is inactived or Expired')
-			if kecilin_log.services is not None:
-				for service in kecilin_log.services:
-					logging.error(F"{datetime.datetime.now()}, stopping {service[1]}")
-					cmd = F"pm2 stop {service[1]}"
-					os.system(cmd)
-		else:
-			print("key is active")
+	# @sched.scheduled_job('interval', id='job_api_key', minutes=10)
+	# def check_history_key():
+	# 	kecilin_log.status_key = kecilin_log.history_key()
+	# 	if not kecilin_log.status_key:
+	# 		kecilin_log.send_notif(f'Kecilin {args.project_name}\nApi Key is inactived or Expired')
+	# 		if kecilin_log.services is not None:
+	# 			for service in kecilin_log.services:
+	# 				logging.error(F"{datetime.datetime.now()}, stopping {service[1]}")
+	# 				cmd = F"pm2 stop {service[1]}"
+	# 				os.system(cmd)
+	# 	else:
+	# 		print("key is active")
 
 		
 
@@ -164,27 +177,36 @@ if __name__ == '__main__':
 		kecilin_log.services = pd.read_csv('templates/services_list.csv', delimiter=',', header=0)
 		kecilin_log.services = np.array(kecilin_log.services)	
 
-	while True:
-		if args.skip_cctv or not kecilin_log.status_key:
-			print('Skipping CCTV')
-		else:
-			print('Log CCTV is running')
-			for service in kecilin_log.services:
-				if kecilin_log.status_key:
-					cap = cv2.VideoCapture(service[3])
-					time.sleep(30)
-					if not cap.isOpened():
-						cap = cv2.VideoCapture(service[2])
-						time.sleep(15)
-						if not cap.isOpened():
-							logging.error(F"{datetime.datetime.now()}, Camera {service[2]} is offline")
-							kecilin_log.send_notif(f"Kecilin {args.project_name}\nCompression not work normally\non this link {service[3]}\nCamera Original is offline")
-						else:
-							logging.error(F"{datetime.datetime.now()}, restarting {service[1]}")
-							cmd = F"pm2 restart {service[1]}"
-							os.system(cmd)
-							kecilin_log.send_notif(f'Kecilin {args.project_name}\nCompression not work normally\non this link {service[3]}\nTrying to restart service {service[1]}')
-					cap = None
 
-		time.sleep(30)
+	try:
+		while True:
+			if not kecilin_log.have_internet():
+				logging.error(F"{datetime.datetime.now()}, Koneksi Internet hilang")
+			else:
+				logging.error(F"{datetime.datetime.now()}, Koneksi Internet Ada")
+
+			if args.skip_cctv or not kecilin_log.status_key:
+				print('Skipping CCTV')
+			else:
+				print('Log CCTV is running')
+				for service in kecilin_log.services:
+					if kecilin_log.status_key:
+						cap = cv2.VideoCapture(service[3])
+						time.sleep(30)
+						if not cap.isOpened():
+							cap = cv2.VideoCapture(service[2])
+							time.sleep(15)
+							if not cap.isOpened():
+								logging.error(F"{datetime.datetime.now()}, Camera {service[2]} is offline")
+								kecilin_log.send_notif(f"Kecilin {args.project_name}\nCompression not work normally\non this link {service[3]}\nCamera Original is offline")
+							else:
+								logging.error(F"{datetime.datetime.now()}, restarting {service[1]}")
+								cmd = F"pm2 restart {service[1]}"
+								os.system(cmd)
+								kecilin_log.send_notif(f'Kecilin {args.project_name}\nCompression not work normally\non this link {service[3]}\nTrying to restart service {service[1]}')
+						cap = None
+
+			time.sleep(30)
+	except KeyboardInterrupt:
+		print("\n\n\tStoping Program!")
 
